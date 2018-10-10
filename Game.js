@@ -8,12 +8,10 @@ let selectedTile = { x : 0, y : 0 },
 let cryos = 0;
 let hotbar = [];
   let selectedHotbarItem = 0;
-let levels = []
 const menuButtons = [];
-const objects = [];
-  validxy = [];
+const objects = [],
+  validxy = [],
     levels = [];
-      text = '';
 let inStatsMenu = false, levelEditMode = false,  noClip = false, inVendorMenu = false, inMainMenu = false;
 let selectedVendorItem = 0, vendorInventory = [];
 //vector objects
@@ -122,8 +120,7 @@ const entity = ( x, y, id_, ctx ) => {
              rect1.y + rect1.height > rect2.y);
              if(colliding){
                removeObject( x, y, id );
-               text = 'you got +35 cryos! succesful boi!';
-               cryos += 35;
+               cryos += 15;
                let ctx = document.getElementById('canvas').getContext('2d');
                hotbar.push(hotbarItem('bow', ctx, hotbar.length));
              }
@@ -443,9 +440,13 @@ const showVendorMenu = (canvas, ctx) => {
   ctx.drawImage( img, 110, 90 );
   ctx.fillStyle='white';
   ctx.font = "12px Arial";
-  let string = [ "Hey there adventurer!, I sell weapons and shit But",
-                "currently I lost my book of inventory so im",
-                "afraid i cant sell you anything right now" ];
+  ctx.fillText("your cryos: " + cryos, 110, 315)
+  let string = [ "I used to be an adventurer like you. But then",
+                "i got old and crippled. I still sell things to ",
+                "idiots like you though so why dont you buy summin",
+                "    [press number keys to cycle through items]"
+              ];
+
   //draw string
   for( let i = 0; i < string.length; i++ ) {
     ctx.fillText( string[i] ,210, 120 + ( i * 20 ) );
@@ -455,23 +456,46 @@ const showVendorMenu = (canvas, ctx) => {
   //draw vendors sellable items
   for( let i = 0; i < vendorInventory.length; i++ ) {
     let item = vendorInventory[i]
+    let itemImg;
     let x = 230 + (i * 40);
     if(i === selectedVendorItem) {
       ctx.fillStyle = "#000000"
-      ctx.fillRect( x - 1, 199, 32, 32);
+      ctx.fillRect( x - 2, 198, 34, 34);
     }
     switch( item.id ) {
       case "strength":
-        ctx.fillStyle = "#FF5555"
+        ctx.fillStyle = "#FF5555";
+        itemImg = document.getElementById("shield");
       break;
       case "magic":
-        ctx.fillStyle = "#55FF55"
+        ctx.fillStyle = "#55FF55";
+        itemImg = document.getElementById("potion")
       break;
       case  "deception":
+      itemImg = document.getElementById("cloak")
         ctx.fillStyle = "#5555FF"
       break;
     }
     ctx.fillRect( x , 200, 30, 30);
+    ctx.drawImage(itemImg, x, 200);
+  }
+  let desc = [];
+  //draw description of selected items
+  switch(selectedVendorItem) {
+    case 0:
+      desc = ["Shield emblem", "gives +3 Strength", "cost: 30cryos"]
+    break;
+    case 1:
+      desc = ["Potion emblem", "gives +3 magic", "cost: 30cryos"]
+    break;
+    case 2:
+      desc = ["cloak emblem", "gives +3 deception", "cost: 30cryos"]
+    break;
+  }
+  ctx.font = "12px, arial"
+  ctx.fillStyle = "#FFFFFF"
+  for (let i = 0; i < desc.length; i++) {
+    ctx.fillText( desc[i], 350, 220 + ( i * 20 ) )
   }
 }
 
@@ -688,7 +712,7 @@ $(document).ready( function() {
     //loop  through menu buttons
     menuButtons.forEach( btn => {
       //find if btn bounding rectangle has mouse x and y in it
-      if( mx < ( btn.pos.x + btn.width ) && mx > btn.pos.x
+      if( mx < ( btn.pos.x + btn.width + 15 ) && mx > btn.pos.x
           && my < ( btn.pos.y + btn.height) && my > btn.pos.y) {
             //call the buttons handler function
             btn.handler();
