@@ -1,17 +1,22 @@
-let p, drawCircle, drawLine;
+//player
+let p;
+let cryos = 0, strength = 0, deception = 0, magic = 0, luck = Math.floor(Math.random() * 3);
 //for player movement
 let up, down, left, right;
-let speechBubble;
 let scale = 20;
 let selectedTile = { x : 0, y : 0 },
   selectedTileLast;
-let cryos = 0;
 let hotbar = [];
   let selectedHotbarItem = 0;
+    let lastButtonsPressed = '';
 const menuButtons = [];
 const objects = [],
-  validxy = [],
-    levels = [];
+  possibleTilePositions = [],
+    levels = [],
+      levelsVisited = [];
+let currentLevel = 0;
+let inFrogMenu = false, frogInteractionCounter = 0;
+let npcText = [];
 let inStatsMenu = false, levelEditMode = false,  noClip = false, inVendorMenu = false, inMainMenu = false;
 let selectedVendorItem = 0, vendorInventory = [];
 //vector objects
@@ -60,33 +65,15 @@ function Vec2( xx, yy ) {
   }
 }
 
-//   --HOTBAR FUNCTIONS--
-
-const addElement =  ( type, text, parent ) => {xx
-  //create element
-  let element = document.createElement(type)
-  element.className = 'newDiv'
-  //create text on element
-  let content = document.createTextNode(text);
-  //element.class = 'hope'
-  element.appendChild(content)
-  //add click handler
-  element.onClick = () => console.log("yayayaya")
-  element.addEventListener('mouseover', () => console.log("yayayaya"))
-  //add mouseOver handler
-//  element.addEventListener('mouseover',mouseoverHandler);
-  //append element to parent
-}
-
 //   --LEVEL LOADiNG FUNCTIONS--
-const fillValidxy = () => {
+const fillPossibleTileSpots = () => {
   let canvas = document.getElementById("canvas"),
   ctx = canvas.getContext("2d"),
   width = canvas.getBoundingClientRect().width,
   height = canvas.getBoundingClientRect().height;
   for (xx = 0;xx < width; xx += scale) {
     for (yy = 0; yy < height; yy += scale) {
-      validxy.push( { x : (xx + scale) - scale, y : (yy + scale) - scale } );
+      possibleTilePositions.push( { x : (xx + scale) - scale, y : (yy + scale) - scale } );
     }
   }
 }
@@ -199,68 +186,48 @@ const tile = ( x, y, id_, ctx ) => {
       }
     },
     show(ctx) {
-      if(id !== 'empty') {
-          ctx.drawImage(texture, pos.x, pos.y)
-      }else {
         ctx.drawImage(texture, pos.x, pos.y)
-      }
     }
   }
 }
 
-const loadChunk = ( rgbaArray ) => {
+const loadLevel = ( rgbaArray ) => {
   //fetch canvas and graphics
   let canvas = document.getElementById("canvas");
   let ctx = canvas.getContext("2d");
   //loop through pixel array
   for(let x = 0; x < 30; x++) {
     for(let y = 0; y < 20; y++) {
-      if(rgbaArray[x][y] === 'rgba(0, 0, 0, 1)') {
-        objects.push( tile( x * scale, y * scale, 'stone', ctx ))
-      }else if(rgbaArray[x][y] === 'rgba(0, 255, 0, 1)') {
-        objects.push( entity( x * scale, y * scale, 'cryos', ctx))
-      }else if(rgbaArray[x][y] === 'rgba(255, 200, 0, 1)') {
-        objects.push( tile( x * scale, y * scale, 'wood', ctx))
-      }else if(rgbaArray[x][y] === 'rgba(255, 255, 0, 1)') {
-        objects.push( tile( x * scale, y * scale, 'vendorWood', ctx))
-      }else if(rgbaArray[x][y] === 'rgba(255, 0, 255, 1)') {
-        objects.push( tile( x * scale, y * scale, 'vendor', ctx))
+      switch(rgbaArray[x][y]){
+      case 'rgba(0, 0, 0, 1)':
+        objects.push( tile( x * scale, y * scale, 'stone', ctx ) );
+      break;
+      case 'rgba(0, 255, 0, 1)':
+        objects.push( entity( x * scale, y * scale, 'cryos', ctx) );
+      break;
+      case 'rgba(255, 200, 0, 1)':
+        objects.push( tile( x * scale, y * scale, 'wood', ctx) );
+      break;
+      case 'rgba(255, 255, 0, 1)':
+        objects.push( tile( x * scale, y * scale, 'vendorWood', ctx) );
+      break;
+      case 'rgba(255, 0, 255, 1)':
+        objects.push( tile( x * scale, y * scale, 'vendor', ctx) );
+      break;
+      case 'rgba(100, 200, 100, 1)':
+          objects.push( frog( x * scale, y * scale, 'frog', ctx) );
+      break;
       }
     }
   }
 }
 
-const saveChunk = () => {
-  let canvas = document.getElementById('canvas');
-  let ctx = canvas.getContext('2d');
-  //creat multidim array
-  let level = new Array(canvas.width);
-  for(let i = 0; i < canvas.height; i++){
-    level[i] = new Array(canvas.width);
-  }
-  //loop through current game objects array and write it to level
-  for(let x = 0; x < canvas.width; x++) {
-    for(let y = 0; y < canvas.height; y++) {
-      let pixel = ctx.getImageData(x, y, 1, 1).data
-      let color = 'rgba(' + pixel[0] + ', ' + pixel[1] + ', '
-       + pixel[2] + ', ' + (pixel[3] / 255) + ')';
-         level[x][y] = color
-    }
-  }
-  return level;
-}
-
 const getRGBA = img => {
-  console.log(img.width, " ", img.height);
-  //create canvas for img
   let tempCanvas = document.createElement('canvas');
   tempCanvas.width = img.width;
   tempCanvas.height = img.height;
-  //get graphics context
   let context = tempCanvas.getContext('2d');
-  //draw image on canvas
   context.drawImage(img, 0, 0);
-  //create multidim array to store values
   let rgbaValues = new Array(img.width);
   for(let i = 0; i < img.width; i++){
     rgbaValues[i] = new Array(img.height);
@@ -277,46 +244,9 @@ const getRGBA = img => {
   return rgbaValues;
 }
 
-const npc = ( xx, yy, id_, ctx ) => {
-  let pos = new Vec2( x, y );
-  let id = id_;
-  let imgElement = document.getElementById(id);
-  let width = imgElement.width
-  let height = imgElement.height
-  return {
-    get id() {
-      return id;
-    },
-    get pos() {
-      return pos;
-    },
-    show() {
-      ctx.drawImage(imgElement, pos.x, pos.y)
-    },
-    update(delta, velLast) {
-      //hitbox for this object
-      let rect2 = {x : pos.x, y: pos.y, width: scale, height: scale}
-      //player hitbox
-      let rect1 = {x : p.pos.x + ((p.velLast.x * delta) * 1.2) , y: p.pos.y + ((p.velLast.y * delta) * 1.2), width: 15, height: 15}
-      //collision detection
-      if(!noClip) {
-       let colliding = (rect1.x < rect2.x + rect2.width &&
-           rect1.x + rect1.width > rect2.x &&
-           rect1.y < rect2.y + rect2.height &
-           rect1.y + rect1.height > rect2.y);
-           if(colliding){
-
-           }
-      }
-    }
-  }
-}
-
-
 //  --LEVEL RENDERING AND UPDATING FUNCTIONS--
 
 const drawImg = ( rgbaArray, xoff, yoff, scale, ctx ) => {
-  //double for loop draw all the pixels
   for(let x = 0; x < rgbaArray[0].length; x++) {
     for(let y = 0; y < rgbaArray[0][0].length; y++) {
       ctx.fillStyle = rgbaArray[x][y];
@@ -350,22 +280,22 @@ const getMousePos = ( e, canvas ) => {
     };
   }
 
-const getClosestValidxy = ( x, y ) => {
-    //get distance between all points in validxy and mouse pointes
-    let currx = validxy[0].x,
-     curry = validxy[0].y,
+const getClosestPossibleTilePosition = ( x, y ) => {
+    //get distance between all points in possibleTilePositions and mouse pointes
+    let currx = possibleTilePositions[0].x,
+     curry = possibleTilePositions[0].y,
       distx = Math.abs ( x - currx  ),
         disty = Math.abs ( y - curry );
-      for(let i = 0; i < validxy.length ; i++) {
-        let  newDistx = Math.abs(x - validxy[i].x);
-        let newDisty = Math.abs(y - validxy[i].y)
+      for(let i = 0; i < possibleTilePositions.length ; i++) {
+        let  newDistx = Math.abs(x - possibleTilePositions[i].x);
+        let newDisty = Math.abs(y - possibleTilePositions[i].y)
         if( newDistx < distx ) {
            distx = newDistx;
-           currx = validxy[i].x;
+           currx = possibleTilePositions[i].x;
          }
         if( newDisty < disty ) {
           disty = newDisty;
-          curry = validxy[i].y;
+          curry = possibleTilePositions[i].y;
          }
       }
       return { x : currx, y : curry };
@@ -398,61 +328,382 @@ const menuButton = ( handler, text, xx, yy) => {
     get handler() {
       return handler;
     },
+    set handler(temp) {
+      handler = temp;
+    },
     show( ctx ) {
       ctx.fillStyle = '#aaAAaa';
       ctx.fillRect( pos.x, pos.y, width, height );
       ctx.fillStyle = '#000000';
-      ctx.rect( pos.x, pos.y, width, height );
-      ctx.stroke();
-      ctx.font = "12px Arial";
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#000000';
+      ctx.strokeRect( pos.x, pos.y, width, height );
+      ctx.font = "12px Roboto Condensed";
       ctx.fillText( text, pos.x + 25, pos.y + 15);
     }
   }
 }
 
 const showStatsMenu = ( canvas, ctx ) => {
-  ctx.fillStyle = '#616161'
+  ctx.fillStyle = '#70645a '
   ctx.fillRect( 200, 80, 200, 240 );
   ctx.fillStyle = 'white';
-  ctx.font = "12px Arial";
-  let string = [ "-Stats-",
+  let string = ["-Stats-",
                 "cryos: " + cryos,
-                "strength",
-                "Magic",
-                "deception"];
+                "strength: " + strength,
+                "Magic: " + magic,
+                "deception: " + deception,
+                "Luck: " + luck
+              ];
   for( let i = 0; i < string.length; i++ ) {
     //if first one draw in center
-    (i === 0) ? ctx.fillText( string[i] ,280, 120 + ( i * 20 ) ) :
-    //if not draw in default position
-    ctx.fillText( string[i] ,210, 120 + ( i * 20 ) );
+    if(i === 0) {
+      ctx.font = "20px Roboto Condensed";
+      ctx.fillText( string[i] ,270, 120 + ( i * 20 ) )
+    }else {
+      //draw in default position
+      ctx.font = "12px Roboto Condensed";
+      ctx.fillText( string[i] ,210, 120 + ( i * 20 ) );
+    }
   }
 }
 
+
+const frog = ( x, y, id_, ctx ) => {
+  let pos = new Vec2( x, y );
+  let id = id_;
+  let imgElement = document.getElementById("frog-small");
+  let width = imgElement.width
+    ,height = imgElement.height;
+  let wantsToInteract = true;
+  return {
+    get id() {
+      return id;
+    },
+    get pos() {
+      return pos;
+    },
+    show() {
+      ctx.drawImage(imgElement, pos.x, pos.y)
+    },
+    update(delta, velLast) {
+      //hitbox for this object
+      let rect2 = {x : pos.x, y: pos.y, width: scale, height: scale}
+      //player hitbox
+      let rect1 = {x : p.pos.x + ((p.velLast.x * delta) * 1.2) , y: p.pos.y + ((p.velLast.y * delta) * 1.2), width: 15, height: 15}
+      //collision detection
+      if(!noClip) {
+       let colliding = (rect1.x < rect2.x + rect2.width &&
+           rect1.x + rect1.width > rect2.x &&
+           rect1.y < rect2.y + rect2.height &
+           rect1.y + rect1.height > rect2.y);
+             if(colliding){
+              //check if x is colliding
+              if (rect1.x < rect2.x + rect2.width &&
+                  rect1.x + rect1.width > rect2.x ) {
+                    //add vel
+                    p.pos = p.pos.addV(new Vec2( -p.velLast.x, 0 ));
+                  }
+               //check if y is colliding and handle vel accordingly
+               if (rect1.y < rect2.y + rect2.height &&
+               rect1.y + rect1.height > rect2.y) {
+                 p.pos = p.pos.addV(new Vec2( 0 ,-p.velLast.y ));
+               }
+               wantsToInteract = false;
+               frogInteractionCounter = 0;
+               lastButtonsPressed = ''
+               inFrogMenu = true;
+             }
+      }
+    }
+  }
+}
+
+const showFrogMenu = ( canvas, ctx ) => {
+  let img = document.getElementById('frog-large');
+  ctx.fillStyle = '#70645a ';
+  ctx.fillRect( 100, 80, 400, 240 );
+  ctx.fillStyle = "black";
+  ctx.fillRect(110, 90, 90, 90);
+  ctx.fillStyle = "white";
+  ctx.drawImage(img, 100, 100);
+  for(let btn of menuButtons){ btn.show(ctx); };
+    for( let i = 0; i < npcText.length; i++ ) {
+      ctx.fillText( npcText[i] ,210, 120 + ( i * 15 ) );
+    }
+}
+
+let yscale = 35, xscale = 80;
+let startx = 200;
+let starty = 240;
+let text = '';
+let func
+const updateFrogMenu = () => {
+  switch( frogInteractionCounter ) {
+    case 0:
+      if( menuButtons < 1 ) {
+          npcText = ["hi  im a frog nice to meet you friendo",
+            "I like flies and shit",
+            'say, what you doin down here?',
+            "-A. (Lie "+deception+"/deception + luck)Im here to meet frogs",
+            "-B. I dont know, i pretty much just woke up here",
+            "-C. (magic "+magic+"/ magic)I'm practicing spells, want to see?",
+            "-D. to do"
+          ]
+          text = "- A -"
+          func = () => {
+                frogInteractionCounter += 1;
+                lastButtonsPressed += 'A';
+                menuButtons.splice(0, menuButtons.length);
+
+            }
+          menuButtons.push( menuButton(func, text, startx, starty) );
+          text = "- C -"
+          func = () => {
+                frogInteractionCounter += 1;
+                lastButtonsPressed += 'C';
+                menuButtons.splice(0, menuButtons.length);
+                c = false;
+           }
+          menuButtons.push( menuButton(func, text, startx, starty + yscale));
+          text = "- B -"
+          func = () => {
+              frogInteractionCounter += 1;
+              lastButtonsPressed += 'B';
+              menuButtons.splice(0, menuButtons.length);
+              b = false;
+           }
+          menuButtons.push( menuButton(func, text, startx + xscale, starty) );
+          text = "- D -"
+          func = () => {
+              frogInteractionCounter += 1;
+              lastButtonsPressed += 'D';
+              menuButtons.splice(0, menuButtons.length);
+              d = false;
+           }
+          menuButtons.push( menuButton(func, text, startx + xscale, starty + yscale) );
+        }
+        break;
+        case 1:
+          switch(lastButtonsPressed) {
+            case 'A':
+              if(menuButtons.length < 1){
+                npcText = ["oh well thats quite prime tidy",
+                  "My name is ezreal orange the third and I",
+                  'will let it be known around the frogs of ',
+                  "this cave that you are a friend",
+                  "A. Thank you, that's very nice of you",
+                  "B. I am awesome so spread the word far",
+                  "   my tiny friend"
+                ];
+                text = "- A -"
+                func = () => {
+                    frogInteractionCounter += 1;
+                    lastButtonsPressed += 'A';
+                    menuButtons.splice(0, menuButtons.length);
+                  }
+              menuButtons.push( menuButton(func, text, startx, starty));
+                text = "- B -"
+                func = () => {
+                  frogInteractionCounter += 1;
+                  lastButtonsPressed += 'B';
+                  menuButtons.splice(0, menuButtons.length);
+                 }
+                menuButtons.push( menuButton(func, text, startx + xscale, starty) );
+            }
+            break;
+            case 'B':
+            if(menuButtons.length < 1){
+              let tempText;
+              (cryos > 0) ? tempText = "lie" : tempText = "truth";
+              npcText = ["Oh thats not prime tidy at all",
+                "quite sorry about this friend but because",
+                'of your precarious situation Im gonna ask',
+                "you to kindly donate all your cryos to me",
+                "A. ("+tempText+") I don't have any cryos on me",
+                "B. (Strength + luck("+strength+")/ 3) Fight me froggo!"]
+                text = "- A -"
+                func = () => {
+                    frogInteractionCounter += 1;
+                    lastButtonsPressed += 'A'
+                    menuButtons.splice(0, menuButtons.length);
+                  }
+              menuButtons.push( menuButton(func, text, startx, starty));
+                text = "- B -"
+                func = () => {
+                  frogInteractionCounter += 1;
+                  lastButtonsPressed += 'B';
+                  menuButtons.splice(0, menuButtons.length);
+                 }
+                menuButtons.push( menuButton(func, text, startx + xscale, starty) );
+              }
+            break;
+            case 'C':
+              if(menuButtons.length < 1){
+                npcText = ["you pressed {C] blah blah",
+                  "blah",
+                  'afsaahbjflhnagdlsnsanagdiusbosa',
+                  "agdihdaohgohoiehnwnwaifo",
+                  "godshnaionshaoingadoinodi"];
+                }
+            break;
+            case 'D':
+              if(menuButtons.length < 1) {
+              npcText = ["you pressed {D] blah blah",
+                "blah",
+                'afsaahbjflhnagdlsnsanagdiusbosa',
+                "agdihdaohgohoiehnwnwaifo",
+                "godshnaionshaoingadoinodi"];
+              }
+            break;
+          }
+          break;
+          case 2:
+            switch(lastButtonsPressed) {
+              case 'AA':
+              if(menuButtons.length < 1) {
+                npcText = ["You are quite welcome,",
+                  "goodbye now",
+                  "",
+                  "",
+                  "-A. goodbye"
+                  ]
+                    text = "- A -"
+                    func = () => {
+                        frogInteractionCounter = 0;
+                        inFrogMenu = false;
+                        menuButtons.splice(0, menuButtons.length);
+                        }
+                    menuButtons.push( menuButton(func, text, startx, starty) );
+                  }
+              break;
+              case 'AB':
+                if(menuButtons.length < 1) {
+                  npcText = ["Well I guess I'll also have to tell",
+                    "them about your apparent arrogance.",
+                    '',
+                    "",
+                    "A.....okay"];
+                    text = "- A -"
+                    func = () => {
+                        frogInteractionCounter = 0;
+                        inFrogMenu = false;
+                        menuButtons.splice(0, menuButtons.length);
+                        }
+                    menuButtons.push( menuButton(func, text, startx, starty) );
+                  }
+              break;
+              case 'BA':
+                if(menuButtons.length < 1) {
+                  if(cryos > 1) {
+                    npcText = ["Don't try to play those games with me.",
+                      "you dissapoint me human .",
+                      "",
+                      '(you stand helplessly as the frog takes your cryos)',
+                      "A.....okay"];
+                      text = "- A -"
+                      func = () => {
+                            cryos = 1;
+                            frogInteractionCounter += 1;
+                            inFrogMenu = false;
+                            menuButtons.splice(0, menuButtons.length);
+                          }
+                      menuButtons.push( menuButton(func, text, startx, starty) );
+
+                }else {
+                      npcText = ["Oh it seems you actually don't have any.",
+                        "you dissapoint me human .",
+                        "",
+                        '(The frog hops away menacingly)',
+                        "A.....okay"];
+                        text = "- A -"
+                        func = () => {
+                              menuButtons.splice(0, menuButtons.length);
+                              frogInteractionCounter = 0;
+                              inFrogMenu = false;
+                            }
+                    menuButtons.push( menuButton(func, text, startx, starty) );
+                  }
+                }
+              break;
+              case 'BB':
+                if(menuButtons.length < 1) {
+                let chance = Math.random() * (strength + luck);
+                  if(chance > 3){
+                  npcText = ["Oh it seems you actually don't have any.",
+                    "you dissapoint me human .",
+                    "",
+                    '(The frog hops away in annoyance)',
+                    "A.....okay"];
+                    text = "- A -"
+                    func = () => {
+                          menuButtons.splice(0, menuButtons.length);
+                          frogInteractionCounter = 0;
+                          inFrogMenu = false;
+                        }
+                      menuButtons.push( menuButton(func, text, startx, starty) );
+                } else {
+                    npcText = ["Don't try to play those games with me.",
+                      "you dissapoint me human .",
+                      "",
+                      '(you stand helplessly as the frog takes your cryos)',
+                      "A.....okay"];
+                      text = "- A -"
+                      func = () => {
+                            cryos = 1;
+                            frogInteractionCounter += 1;
+                            inFrogMenu = false;
+                            menuButtons.splice(0, menuButtons.length);
+                          }
+                      menuButtons.push( menuButton(func, text, startx, starty) );
+                    }
+                }
+              break;
+        }
+        case 3:
+          switch(lastButtonsPressed) {
+
+          }
+        break;
+  }
+}
+
+
+const logAllObjects = () => {
+  let id;
+  for(let obj of objects){
+    id = obj.id;
+    switch( id ) {
+    case "vendor":
+      console.log('%c' + oid, 'color: purple; font-weight: bold');
+    break;
+    case "frog":
+      console.log('%c' + id, 'color: #aaFFaa; font-weight: bold');
+    break;
+    case "stone":
+      console.log('%c' + id, 'color: #616161;');
+    break;
+    case "wood":
+      co
+    default:
+      console.log(id);
+    break;
+    }
+   }
+}
+
 const showVendorMenu = (canvas, ctx) => {
-  vendorInventory = [
-    {id : "strength"},
-    {id : "magic"},
-    {id : "deception"}
-  ]
   let img = document.getElementById('vendor-face')
-  ctx.fillStyle = '#616161'
+  ctx.fillStyle = '#70645a';
   ctx.fillRect( 100, 80, 400, 240 );
   ctx.drawImage( img, 110, 90 );
   ctx.fillStyle='white';
-  ctx.font = "12px Arial";
+  ctx.font = "12px Roboto Condensed";
   ctx.fillText("your cryos: " + cryos, 110, 315)
-  let string = [ "I used to be an adventurer like you. But then",
-                "i got old and crippled. I still sell things to ",
-                "idiots like you though so why dont you buy summin",
-                "    [press number keys to cycle through items]"
-              ];
-
-  //draw string
-  for( let i = 0; i < string.length; i++ ) {
-    ctx.fillText( string[i] ,210, 120 + ( i * 20 ) );
+  for( let i = 0; i < npcText.length; i++ ) {
+    ctx.fillText( npcText[i] ,210, 120 + ( i * 20 ) );
   }
-  //show menu buttons
-  menuButtons.forEach( btn => { btn.show(ctx); } )
+  for(let btn of menuButtons){ btn.show(ctx); }
   //draw vendors sellable items
   for( let i = 0; i < vendorInventory.length; i++ ) {
     let item = vendorInventory[i]
@@ -492,16 +743,25 @@ const showVendorMenu = (canvas, ctx) => {
       desc = ["cloak emblem", "gives +3 deception", "cost: 30cryos"]
     break;
   }
-  ctx.font = "12px, arial"
-  ctx.fillStyle = "#FFFFFF"
+  ctx.fillStyle = "#eeddee"
   for (let i = 0; i < desc.length; i++) {
     ctx.fillText( desc[i], 350, 220 + ( i * 20 ) )
   }
 }
 
 const updateVendorMenu = () => {
-  //add menu buttons
+  //add menu buttonso
   if ( menuButtons.length < 1 ) {
+      npcText = [ "I used to be an adventurer like you. But then",
+                    "i got old and crippled. I still sell things to ",
+                    "idiots like you though so why dont you buy summin",
+                    "    [press number keys to cycle through items]"
+                  ];
+      vendorInventory = [
+        {id : "strength"},
+        {id : "magic"},
+        {id : "deception"}
+      ]
     let scale = 20;
     let startx = 250;
     let starty = 280;
@@ -518,13 +778,34 @@ const updateVendorMenu = () => {
     //buy button
     text = "buy"
     func = () => {
-      //buy whatever item is currently selected
+      if( cryos >= 30 ) {
+        vendorInventory.splice(selectedVendorItem, 1);
+        cryos -= 30;
+        npcText = ["Thanks for the purchase foolish child,",
+                      "         don't come back!",
+                      "press [i] to open the stats menu"];
+        switch( selectedVendorItem ) {
+          case 0:
+            strength += 3;
+          break;
+          case 1:
+            magic += 3;
+          break;
+          case 2:
+            deception += 3;
+          break;
+        }
+      }else{
+            npcText = ["You don't have enough cryos foolish child,",
+                          "Find some of those greeen crystally shit",
+                          "on the ground and come back!"];
+      }
     }
     menuButtons.push( menuButton(func, text, startx, starty - scale) );
   }
 
 }
-
+//TODO fix this wtf makes no sense how sleep deprived were you
 const showHotbar = (ctx) => {
   hotbar.forEach(obj => {obj.show();})
   //ctx.fillStyle = 'rgba(0, 200, 0, 0.5)'
@@ -586,6 +867,10 @@ const player = ( x, y ) => {
   }
 }
 
+const message = ( text, func, ctx) => {
+
+}
+
 const hotbarItem = ( identification, ctx, number ) => {
   let pos = new Vec2(0,0);
   let cw =  document.getElementById('canvas').width;
@@ -625,33 +910,28 @@ const hotbarItem = ( identification, ctx, number ) => {
 
 const removeObject = ( x, y, id ) => {
   //just get x y and id from obj
-  let objectPositions = objects.map( obj => obj = { xx : obj.pos.x, yy : obj.pos.y, id : obj.id } )
+  let objectPositions =
+    objects.map( obj => obj = { xx : obj.pos.x, yy : obj.pos.y, id : obj.id } )
   //loop through objects
   for(let i = 0; i < objectPositions.length; i++) {
     //check if obj is desired obj
     if( objectPositions[i].xx === x &&
       objectPositions[i].yy === y &&
       objectPositions[i].id === id  ) {
-        //remove obj
         objects.splice( i, 1 );
       }
   }
 }
 
 $(document).ready( function() {
+  fillPossibleTileSpots();
   //    --MAIN LOOP--
-  fillValidxy();
   //returns current time in milliseconds
   function timestamp() {
     return window.performance && window.performance.now ? window.performance.now() : new Date().getTime();
   }
   let canvas = document.getElementById("canvas");
   let ctx = canvas.getContext("2d");
-  let MAXFPS = 1/60,
-      delta = 0,
-      now,
-      timeSinceLastFrame = timestamp();
-
   //render errything!
   const show = (delta, ctx) => {
     ctx.fillStyle = "white";
@@ -659,30 +939,34 @@ $(document).ready( function() {
     //draw background
     drawBackground('stone-bkg', ctx);
 
-    if( !levelEditMode ) {
-      p.show(ctx);
-    }
-    objects.forEach(tile => {
-      tile.show(ctx);
-    });
+    if( !levelEditMode ) {p.show(ctx);}
+
+    for (let tile of objects){tile.show(ctx);}
     showHotbar(ctx);
-    if(inVendorMenu) {showVendorMenu( document.getElementById('canvas'), ctx )}
-    if(inStatsMenu) {showStatsMenu(document.getElementById('canvas'), ctx )}
+    if( inVendorMenu )  showVendorMenu( canvas, ctx );
+    if( inStatsMenu )  showStatsMenu( canvas, ctx );
+    if( inFrogMenu )  showFrogMenu( canvas, ctx );
   }
   //update errything!
+  let MAXFPS = 0.02, /* 0.02 = 1/60 */
+      delta = 0,
+      now,
+      timeSinceLastFrame = timestamp();
   const tick = ( delta ) => {
       if (!levelEditMode && !inVendorMenu && !inMainMenu) {p.update(delta);}
-      objects.forEach(tile => {tile.update(delta, p.velLast)});
+      for( let tile of objects ){tile.update(delta, p.velLast)}
       updateHotbar();
-      updateVendorMenu();
+      if( inVendorMenu ) updateVendorMenu();
+      if( inFrogMenu ) updateFrogMenu();
       //load next level if player exits current level
       if( p.pos.x < 0 || p.pos.x > 600 || p.pos.y < 0 || p.pos.y > 400 ) {
         p.pos.x = 300;
         p.pos.y = 200;
-        //unload all current things onscreen
+        //delete all current things onscreen
         objects.splice( 0, objects.length);
         //load next level
-        loadChunk(levels[1]);
+        currentLevel += 1;
+        loadLevel(levels[currentLevel]);
       }
   }
 
@@ -710,14 +994,14 @@ $(document).ready( function() {
     let mx = mousePosition.x;
     let my = mousePosition.y;
     //loop  through menu buttons
-    menuButtons.forEach( btn => {
+    for(let btn of menuButtons){
       //find if btn bounding rectangle has mouse x and y in it
       if( mx < ( btn.pos.x + btn.width + 15 ) && mx > btn.pos.x
           && my < ( btn.pos.y + btn.height) && my > btn.pos.y) {
             //call the buttons handler function
             btn.handler();
           }
-    });
+    }
   })
 
   let flag = 0;
@@ -730,7 +1014,7 @@ $(document).ready( function() {
       if( flag === 1 ) {
         let mousePos = getMousePos(event, canvas);
         //add selected object at mouse position
-        let tilePos = getClosestValidxy(mousePos.x, mousePos.y);
+        let tilePos = getClosestPossibleTilePosition(mousePos.x, mousePos.y);
         let tempTile = tile(tilePos.x , tilePos.y, 'wall',  ctx);
         objects.push(tempTile);
       }
@@ -741,7 +1025,7 @@ $(document).ready( function() {
       if(levelEditMode){
         let mousePos = getMousePos(event, canvas);
         //add selected object at mouse position
-        let tilePos = getClosestValidxy(mousePos.x, mousePos.y);
+        let tilePos = getClosestPossibleTilePosition(mousePos.x, mousePos.y);
         let tempTile = tile(tilePos.x , tilePos.y, 'wall',  ctx);
         objects.push(tempTile);
       }
@@ -751,7 +1035,7 @@ $(document).ready( function() {
      if(levelEditMode){
         let mousePos = getMousePos(event, canvas);
         //find selected tile and draw a bx around it
-        let tilePos = getClosestValidxy(mousePos.x, mousePos.y);
+        let tilePos = getClosestPossibleTilePosition(mousePos.x, mousePos.y);
         selectedTile = tilePos;
       }
     });
@@ -807,30 +1091,17 @@ $(document).ready( function() {
         break;
         case "Escape":
             inVendorMenu = false;
+            inFrogMenu = false;
         break;
       }
   });
-  //Drawing functions
-  drawLine = ( strtx, strty, endx, endy, color ) => {
-    ctx.fillStyle = color;
-    ctx.moveTo(strtx, strty);
-    ctx.lineTo(endx, endy);
-    ctx.stroke();
-  }
-
-  drawCircle = ( x, y, color, size ) => {
-    ctx.moveTo(x,y);
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, 2 * Math.PI);
-    ctx.stroke;
-  }
 
   //    --IMAGES--
   loadImage('level01.png')
   .then(img => {
     levels.push(getRGBA(img));
-    loadChunk( levels[0] );
+    levelsVisited.push(levels[0]);
+    loadLevel( levels[0] );
   })
   .catch(error => console.log(error));
 
