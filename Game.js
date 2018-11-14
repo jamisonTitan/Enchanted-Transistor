@@ -119,7 +119,8 @@ const entity = ( x, y, id_, ctx ) => {
 const tile = ( x, y, id_, ctx ) => {
   let pos = new Vec2(x, y);
   let id = id_;
-  let texture =  document.getElementById('wood');
+  let texture;
+
     switch(id) {
       case 'vendorWood':
         texture = document.getElementById('wood')
@@ -128,10 +129,13 @@ const tile = ( x, y, id_, ctx ) => {
         texture = document.getElementById('wood')
       break;
       case 'stone':
-        texture = document.getElementById('stone')
+        texture = document.getElementById('purple-brick')
       break;
       case 'vendor':
         texture = document.getElementById('vendor')
+      break;
+      case 'lava':
+        texture = 'lava';
       break;
     }
   return {
@@ -186,21 +190,28 @@ const tile = ( x, y, id_, ctx ) => {
       }
     },
     show(ctx) {
+      if(texture !== 'lava'){
         ctx.drawImage(texture, pos.x, pos.y)
+      }else{
+        ctx.fillStyle = 'rgb(255,155,0)';
+        ctx.fillRect(pos.x,pos.y, scale, scale);
+      }
     }
   }
 }
 
 const loadLevel = ( rgbaArray ) => {
-  //fetch canvas and graphics
   let canvas = document.getElementById("canvas");
   let ctx = canvas.getContext("2d");
-  //loop through pixel array
+  //loop through pixel array of the level
   for(let x = 0; x < 30; x++) {
     for(let y = 0; y < 20; y++) {
       switch(rgbaArray[x][y]){
       case 'rgba(0, 0, 0, 1)':
         objects.push( tile( x * scale, y * scale, 'stone', ctx ) );
+      break;
+      case 'rgba(255, 0, 0, 1)':
+          p = player(x * scale,y * scale);
       break;
       case 'rgba(0, 255, 0, 1)':
         objects.push( entity( x * scale, y * scale, 'cryos', ctx) );
@@ -216,6 +227,13 @@ const loadLevel = ( rgbaArray ) => {
       break;
       case 'rgba(100, 200, 100, 1)':
           objects.push( frog( x * scale, y * scale, 'frog', ctx) );
+          //console.log(x,y,'----',p.pos.x,p.pos.y);
+      break;
+      case 'rgba(255, 100, 0, 1)':
+          objects.push( tile( x * scale, y * scale, 'lava', ctx ) );
+      break;
+      default:
+        //Handle exceptions i guess, idunno
       break;
       }
     }
@@ -281,35 +299,35 @@ const getMousePos = ( e, canvas ) => {
   }
 
 const getClosestPossibleTilePosition = ( x, y ) => {
-    //get distance between all points in possibleTilePositions and mouse pointes
-    let currx = possibleTilePositions[0].x,
-     curry = possibleTilePositions[0].y,
-      distx = Math.abs ( x - currx  ),
-        disty = Math.abs ( y - curry );
-      for(let i = 0; i < possibleTilePositions.length ; i++) {
-        let  newDistx = Math.abs(x - possibleTilePositions[i].x);
-        let newDisty = Math.abs(y - possibleTilePositions[i].y)
-        if( newDistx < distx ) {
-           distx = newDistx;
-           currx = possibleTilePositions[i].x;
-         }
-        if( newDisty < disty ) {
-          disty = newDisty;
-          curry = possibleTilePositions[i].y;
-         }
-      }
-      return { x : currx, y : curry };
-  }
+  //get distance between all points in possibleTilePositions and mouse pointer
+  let currx = possibleTilePositions[0].x,
+   curry = possibleTilePositions[0].y,
+    distx = Math.abs ( x - currx  ),
+      disty = Math.abs ( y - curry );
+    for(let i = 0; i < possibleTilePositions.length ; i++) {
+      let  newDistx = Math.abs(x - possibleTilePositions[i].x);
+      let newDisty = Math.abs(y - possibleTilePositions[i].y)
+      if( newDistx < distx ) {
+         distx = newDistx;
+         currx = possibleTilePositions[i].x;
+       }
+      if( newDisty < disty ) {
+        disty = newDisty;
+        curry = possibleTilePositions[i].y;
+       }
+    }
+    return { x : currx, y : curry };
+}
 
 const drawBackground = ( src, ctx ) => {
-      let img = document.getElementById(src);
-      //draw img in tesselating grid
-      for ( let x = 0; x < 600; x+= img.width ) {
-         for ( let y = 0; y < 400; y+= img.height ) {
-           ctx.drawImage(img, x, y);
-     }
-    }
+    let img = document.getElementById(src);
+    //draw img in tesselating grid
+    for ( let x = 0; x < 600; x+= img.width ) {
+       for ( let y = 0; y < 400; y+= img.height ) {
+         ctx.drawImage(img, x, y);
+   }
   }
+}
 
 const menuButton = ( handler, text, xx, yy) => {
   let pos = new Vec2( xx, yy );
@@ -368,7 +386,6 @@ const showStatsMenu = ( canvas, ctx ) => {
   }
 }
 
-
 const frog = ( x, y, id_, ctx ) => {
   let pos = new Vec2( x, y );
   let id = id_;
@@ -409,11 +426,13 @@ const frog = ( x, y, id_, ctx ) => {
                rect1.y + rect1.height > rect2.y) {
                  p.pos = p.pos.addV(new Vec2( 0 ,-p.velLast.y ));
                }
-               wantsToInteract = false;
-               frogInteractionCounter = 0;
-               lastButtonsPressed = ''
-               inFrogMenu = true;
-             }
+               if(wantsToInteract) {
+                 wantsToInteract = false;
+                 frogInteractionCounter = 0;
+                 lastButtonsPressed = ''
+                 inFrogMenu = true;
+              }
+            }
       }
     }
   }
@@ -436,33 +455,33 @@ const showFrogMenu = ( canvas, ctx ) => {
 let yscale = 35, xscale = 80;
 let startx = 200;
 let starty = 240;
-let text = '';
 let func
 const updateFrogMenu = () => {
+  let isReadyToUpdate =  menuButtons.length < 1;
+  const next = () => {  menuButtons.splice(0, menuButtons.length); }
   switch( frogInteractionCounter ) {
     case 0:
-      if( menuButtons < 1 ) {
+      if( isReadyToUpdate ) {
           npcText = ["hi  im a frog nice to meet you friendo",
             "I like flies and shit",
             'say, what you doin down here?',
-            "-A. (Lie "+deception+"/deception + luck)Im here to meet frogs",
+            "-A. (Lie "+deception+"/ 3)Im here to meet frogs",
             "-B. I dont know, i pretty much just woke up here",
-            "-C. (magic "+magic+"/ magic)I'm practicing spells, want to see?",
+            "-C. (magic "+magic+"/ 3)I'm practicing spells, want to see?",
             "-D. to do"
           ]
           text = "- A -"
           func = () => {
                 frogInteractionCounter += 1;
                 lastButtonsPressed += 'A';
-                menuButtons.splice(0, menuButtons.length);
-
+                next();
             }
           menuButtons.push( menuButton(func, text, startx, starty) );
           text = "- C -"
           func = () => {
                 frogInteractionCounter += 1;
                 lastButtonsPressed += 'C';
-                menuButtons.splice(0, menuButtons.length);
+                next();
                 c = false;
            }
           menuButtons.push( menuButton(func, text, startx, starty + yscale));
@@ -470,7 +489,7 @@ const updateFrogMenu = () => {
           func = () => {
               frogInteractionCounter += 1;
               lastButtonsPressed += 'B';
-              menuButtons.splice(0, menuButtons.length);
+              next();
               b = false;
            }
           menuButtons.push( menuButton(func, text, startx + xscale, starty) );
@@ -478,7 +497,7 @@ const updateFrogMenu = () => {
           func = () => {
               frogInteractionCounter += 1;
               lastButtonsPressed += 'D';
-              menuButtons.splice(0, menuButtons.length);
+              next();
               d = false;
            }
           menuButtons.push( menuButton(func, text, startx + xscale, starty + yscale) );
@@ -487,7 +506,7 @@ const updateFrogMenu = () => {
         case 1:
           switch(lastButtonsPressed) {
             case 'A':
-              if(menuButtons.length < 1){
+              if(isReadyToUpdate){
                 npcText = ["oh well thats quite prime tidy",
                   "My name is ezreal orange the third and I",
                   'will let it be known around the frogs of ',
@@ -500,20 +519,20 @@ const updateFrogMenu = () => {
                 func = () => {
                     frogInteractionCounter += 1;
                     lastButtonsPressed += 'A';
-                    menuButtons.splice(0, menuButtons.length);
+                    next();
                   }
               menuButtons.push( menuButton(func, text, startx, starty));
                 text = "- B -"
                 func = () => {
                   frogInteractionCounter += 1;
                   lastButtonsPressed += 'B';
-                  menuButtons.splice(0, menuButtons.length);
+                  next();
                  }
                 menuButtons.push( menuButton(func, text, startx + xscale, starty) );
             }
             break;
             case 'B':
-            if(menuButtons.length < 1){
+            if(isReadyToUpdate){
               let tempText;
               (cryos > 0) ? tempText = "lie" : tempText = "truth";
               npcText = ["Oh thats not prime tidy at all",
@@ -526,29 +545,59 @@ const updateFrogMenu = () => {
                 func = () => {
                     frogInteractionCounter += 1;
                     lastButtonsPressed += 'A'
-                    menuButtons.splice(0, menuButtons.length);
+                    next();
                   }
               menuButtons.push( menuButton(func, text, startx, starty));
                 text = "- B -"
                 func = () => {
                   frogInteractionCounter += 1;
                   lastButtonsPressed += 'B';
-                  menuButtons.splice(0, menuButtons.length);
+                  next();
                  }
                 menuButtons.push( menuButton(func, text, startx + xscale, starty) );
               }
             break;
             case 'C':
-              if(menuButtons.length < 1){
-                npcText = ["you pressed {C] blah blah",
-                  "blah",
-                  'afsaahbjflhnagdlsnsanagdiusbosa',
-                  "agdihdaohgohoiehnwnwaifo",
-                  "godshnaionshaoingadoinodi"];
+              if(isReadyToUpdate){
+                let chance = Math.floor(Math.random() * magic) + luck;
+                if(chance > 3){
+                npcText = ["You pass the check with" + chance + "/ 3",
+                  "You let out a put of fire from your palm",
+                   "that proves your magical prowess.",
+                  "The frog gives you a spell!",
+                  "A. Graciously accept gift",
+                  "B. Take gift and kill and loot frog"];
+                  text = "- A -"
+                  func = () => {
+                      frogInteractionCounter += 1;
+                      lastButtonsPressed += 'A'
+                      next();
+                    }
+                  menuButtons.push( menuButton(func, text, startx, starty));
+                    text = "- B -"
+                    func = () => {
+                      frogInteractionCounter += 1;
+                      lastButtonsPressed += 'B';
+                      next();
+                     }
+                  menuButtons.push( menuButton(func, text, startx + xscale, starty) );
+                } else {
+                  npcText = ["You fail the check with"+chance+"/ 3",
+                    "You let out a pathetic put of fire from your palm",
+                     "that proves your lack of magical prowess.",
+                    "The frog gives you a dirty look and then hops away",
+                    "you feel a brief tremble of shame travel through your body",
+                    "A. Exit"];
+                    text = "- A -"
+                    func = () => {
+                        inFrogMenu = false;
+                      }
+                    menuButtons.push( menuButton(func, text, startx, starty));
                 }
+              }
             break;
             case 'D':
-              if(menuButtons.length < 1) {
+              if(isReadyToUpdate) {
               npcText = ["you pressed {D] blah blah",
                 "blah",
                 'afsaahbjflhnagdlsnsanagdiusbosa',
@@ -561,7 +610,7 @@ const updateFrogMenu = () => {
           case 2:
             switch(lastButtonsPressed) {
               case 'AA':
-              if(menuButtons.length < 1) {
+              if(isReadyToUpdate) {
                 npcText = ["You are quite welcome,",
                   "goodbye now",
                   "",
@@ -572,13 +621,13 @@ const updateFrogMenu = () => {
                     func = () => {
                         frogInteractionCounter = 0;
                         inFrogMenu = false;
-                        menuButtons.splice(0, menuButtons.length);
+                        next();
                         }
                     menuButtons.push( menuButton(func, text, startx, starty) );
                   }
               break;
               case 'AB':
-                if(menuButtons.length < 1) {
+                if(isReadyToUpdate) {
                   npcText = ["Well I guess I'll also have to tell",
                     "them about your apparent arrogance.",
                     '',
@@ -588,13 +637,13 @@ const updateFrogMenu = () => {
                     func = () => {
                         frogInteractionCounter = 0;
                         inFrogMenu = false;
-                        menuButtons.splice(0, menuButtons.length);
+                        next();
                         }
                     menuButtons.push( menuButton(func, text, startx, starty) );
                   }
               break;
               case 'BA':
-                if(menuButtons.length < 1) {
+                if(isReadyToUpdate) {
                   if(cryos > 1) {
                     npcText = ["Don't try to play those games with me.",
                       "you dissapoint me human .",
@@ -606,7 +655,7 @@ const updateFrogMenu = () => {
                             cryos = 1;
                             frogInteractionCounter += 1;
                             inFrogMenu = false;
-                            menuButtons.splice(0, menuButtons.length);
+                            next();
                           }
                       menuButtons.push( menuButton(func, text, startx, starty) );
 
@@ -618,7 +667,7 @@ const updateFrogMenu = () => {
                         "A.....okay"];
                         text = "- A -"
                         func = () => {
-                              menuButtons.splice(0, menuButtons.length);
+                              next();
                               frogInteractionCounter = 0;
                               inFrogMenu = false;
                             }
@@ -627,7 +676,7 @@ const updateFrogMenu = () => {
                 }
               break;
               case 'BB':
-                if(menuButtons.length < 1) {
+                if(isReadyToUpdate) {
                 let chance = Math.random() * (strength + luck);
                   if(chance > 3){
                   npcText = ["Oh it seems you actually don't have any.",
@@ -637,7 +686,7 @@ const updateFrogMenu = () => {
                     "A.....okay"];
                     text = "- A -"
                     func = () => {
-                          menuButtons.splice(0, menuButtons.length);
+                          next();
                           frogInteractionCounter = 0;
                           inFrogMenu = false;
                         }
@@ -653,10 +702,30 @@ const updateFrogMenu = () => {
                             cryos = 1;
                             frogInteractionCounter += 1;
                             inFrogMenu = false;
-                            menuButtons.splice(0, menuButtons.length);
+                            next();
                           }
                       menuButtons.push( menuButton(func, text, startx, starty) );
                     }
+                }
+              break;
+              case "CA":
+                if(isReadyToUpdate){
+                  npcText = ["you pressed a blah blah",
+                    "You let out a put of fire from your palm",
+                     "that proves your magical prowess.",
+                    "The frog gives you a spell!",
+                    "A. Graciously accept gift",
+                    "B. Take gift and kill and loot frog"];
+                }
+              break;
+              case "CB":
+                if(isReadyToUpdate){
+                  npcText = ["you pressed B blah blah",
+                    "You let out a put of fire from your palm",
+                     "that proves your magical prowess.",
+                    "The frog gives you a spell!",
+                    "A. Graciously accept gift",
+                    "B. Take gift and kill and loot frog"];
                 }
               break;
         }
@@ -667,7 +736,6 @@ const updateFrogMenu = () => {
         break;
   }
 }
-
 
 const logAllObjects = () => {
   let id;
@@ -684,7 +752,11 @@ const logAllObjects = () => {
       console.log('%c' + id, 'color: #616161;');
     break;
     case "wood":
-      co
+      console.log('%c' + id, 'color: #aa2;');
+    break;
+    case "lava":
+      console.log('%c' + id, 'color: #F00;');
+    break;
     default:
       console.log(id);
     break;
@@ -750,8 +822,9 @@ const showVendorMenu = (canvas, ctx) => {
 }
 
 const updateVendorMenu = () => {
-  //add menu buttonso
-  if ( menuButtons.length < 1 ) {
+  let isReadyToUpdate =  menuButtons.length < 1;
+  //add menu buttons
+  if ( isReadyToUpdate ) {
       npcText = [ "I used to be an adventurer like you. But then",
                     "i got old and crippled. I still sell things to ",
                     "idiots like you though so why dont you buy summin",
@@ -795,6 +868,7 @@ const updateVendorMenu = () => {
             deception += 3;
           break;
         }
+        menuButtons.splice(0,menuButtons.length);
       }else{
             npcText = ["You don't have enough cryos foolish child,",
                           "Find some of those greeen crystally shit",
@@ -937,7 +1011,7 @@ $(document).ready( function() {
     ctx.fillStyle = "white";
     ctx.fillRect(0,0,600,400);
     //draw background
-    drawBackground('stone-bkg', ctx);
+    drawBackground('rock-bkg', ctx);
 
     if( !levelEditMode ) {p.show(ctx);}
 
@@ -966,6 +1040,7 @@ $(document).ready( function() {
         objects.splice( 0, objects.length);
         //load next level
         currentLevel += 1;
+        console.log(currentLevel);
         loadLevel(levels[currentLevel]);
       }
   }
@@ -1111,6 +1186,11 @@ $(document).ready( function() {
   })
   .catch(error => console.log(error));
 
+    loadImage('level03.png')
+    .then(img => {
+      levels.push(getRGBA(img));
+    })
+    .catch(error => console.log(error));
 
   //start game
   p = player(300,200);
